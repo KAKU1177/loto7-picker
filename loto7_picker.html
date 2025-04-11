@@ -1,0 +1,194 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loto7 选号器</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f4f8;
+      padding: 20px;
+      margin: 0;
+    }
+    h2 {
+      text-align: center;
+      color: #333;
+    }
+    label, input, select, button {
+      font-size: 16px;
+      margin: 8px 0;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      padding: 10px;
+      width: 100%;
+      border: none;
+      border-radius: 5px;
+    }
+    .results {
+      margin-top: 20px;
+      background: #fff;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .set {
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    .copy-btn {
+      font-size: 14px;
+      margin-left: 10px;
+      padding: 4px 8px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+    }
+    .section-title {
+      margin-top: 30px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h2>Loto7 选号器</h2>
+
+  <label>热号个数 (0-4)</label>
+  <input type="number" id="hotCount" value="3" min="0" max="4" />
+
+  <label>是否包含冷号</label>
+  <select id="includeCold">
+    <option value="yes">是</option>
+    <option value="no">否</option>
+  </select>
+
+  <label>是否包含连号</label>
+  <select id="includeConsecutive">
+    <option value="yes">是</option>
+    <option value="no">否</option>
+  </select>
+
+  <label>生成组数</label>
+  <input type="number" id="setCount" value="5" min="1" max="10" />
+
+  <button onclick="generateNumbers()">生成号码</button>
+
+  <div class="results" id="results">
+    <div class="section-title">本次生成：</div>
+  </div>
+
+  <div class="results" id="history">
+    <div class="section-title">历史记录：</div>
+  </div>
+
+  <script>
+    const allNumbers = Array.from({ length: 37 }, (_, i) => i + 1);
+    const hotNumbers = [23, 36, 34, 19, 15, 12, 18, 31, 4, 11];
+    const coldNumbers = [6, 17, 10, 37];
+
+    function generateSet(hotCount, includeCold, includeConsecutive) {
+      let set = new Set();
+      const selectedHot = randomPick(hotNumbers, hotCount);
+      selectedHot.forEach(n => set.add(n));
+      if (includeCold === "yes") {
+        const cold = randomPick(coldNumbers, 1);
+        cold.forEach(n => set.add(n));
+      }
+      const remaining = 7 - set.size;
+      const exclude = [...hotNumbers, ...coldNumbers, ...set];
+      const pool = allNumbers.filter(n => !exclude.includes(n));
+      const normal = randomPick(pool, remaining);
+      normal.forEach(n => set.add(n));
+
+      if (includeConsecutive === "yes") {
+        const arr = Array.from(set).sort((a, b) => a - b);
+        const hasConsec = arr.some((v, i) => arr[i + 1] - v === 1);
+        if (!hasConsec) {
+          let base = arr[0];
+          if (base < 37 && !set.has(base + 1)) {
+            set.delete(arr[1]);
+            set.add(base + 1);
+          }
+        }
+      }
+
+      return Array.from(set).sort((a, b) => a - b);
+    }
+
+    function randomPick(array, count) {
+      const copy = [...array];
+      const picked = [];
+      while (picked.length < count && copy.length > 0) {
+        const idx = Math.floor(Math.random() * copy.length);
+        picked.push(copy.splice(idx, 1)[0]);
+      }
+      return picked;
+    }
+
+    function generateNumbers() {
+      const hotCount = parseInt(document.getElementById("hotCount").value);
+      const includeCold = document.getElementById("includeCold").value;
+      const includeConsecutive = document.getElementById("includeConsecutive").value;
+      const setCount = parseInt(document.getElementById("setCount").value);
+      const output = document.getElementById("results");
+      const historyDiv = document.getElementById("history");
+
+      let newSets = [];
+      output.innerHTML = `<div class="section-title">本次生成：</div>`;
+
+      for (let i = 0; i < setCount; i++) {
+        const numbers = generateSet(hotCount, includeCold, includeConsecutive);
+        newSets.push(numbers);
+        const div = document.createElement("div");
+        div.className = "set";
+        div.textContent = `第 ${i + 1} 组：${numbers.join("  ")}`;
+
+        const copyBtn = document.createElement("button");
+        copyBtn.className = "copy-btn";
+        copyBtn.textContent = "复制";
+        copyBtn.onclick = () => {
+          navigator.clipboard.writeText(numbers.join(" "));
+          alert("已复制号码：" + numbers.join(" "));
+        };
+
+        div.appendChild(copyBtn);
+        output.appendChild(div);
+      }
+
+      saveToHistory(newSets);
+      renderHistory(historyDiv);
+    }
+
+    function saveToHistory(sets) {
+      let history = JSON.parse(localStorage.getItem("loto7_history")) || [];
+      sets.forEach(set => history.unshift(set));
+      history = history.slice(0, 20); // 只保存最近20组
+      localStorage.setItem("loto7_history", JSON.stringify(history));
+    }
+
+    function renderHistory(container) {
+      const history = JSON.parse(localStorage.getItem("loto7_history")) || [];
+      container.innerHTML = `<div class="section-title">历史记录：</div>`;
+      history.forEach((set, index) => {
+        const div = document.createElement("div");
+        div.className = "set";
+        div.textContent = `历史 ${index + 1}：${set.join("  ")}`;
+        container.appendChild(div);
+      });
+    }
+
+    window.onload = () => {
+      renderHistory(document.getElementById("history"));
+    };
+  </script>
+</body>
+</html>
